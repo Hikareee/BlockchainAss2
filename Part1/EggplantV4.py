@@ -96,6 +96,30 @@ def save_chain(chain):
     with open(CHAIN_FILE, "w") as f:
         json.dump(chain, f, indent=4)
 
+def consensus(original_hash, recovered_hashes):
+    log_text.insert(tk.END, "\n🔍 Starting consensus validation...\n")
+    all_valid = True
+
+    for idx, recovered_hash in enumerate(recovered_hashes):
+        log_text.insert(tk.END, f"🔍 Authority Validator:\n")
+        log_text.insert(tk.END, f"   Original Hash:    {original_hash}\n")
+        log_text.insert(tk.END, f"   Recovered Hash:   {recovered_hash}\n")
+
+        if recovered_hash != original_hash:
+            log_text.insert(tk.END, f"❌ Authority Validator validation FAILED.\n")
+            all_valid = False
+        else:
+            log_text.insert(tk.END, f"✅ Authority Validator validation PASSED.\n")
+
+    if all_valid:
+        log_text.insert(tk.END, "\n✨ Consensus mechanism success.\n")
+        print("Consensus mechanism success")
+    else:
+        log_text.insert(tk.END, "\n❌ Consensus mechanism failed.\n")
+        print("Consensus mechanism failed")
+
+    return all_valid
+
 def create_block(inventory_id,message, signature, public_key):
     chain = load_chain()
     previous_hash = hashlib.md5(json.dumps(chain[-1], sort_keys=True).encode()).hexdigest() if chain else "0"
@@ -138,28 +162,26 @@ def store_transaction(inventory_id, item_data):
 def submit_transaction():
     # Clear previous log
     log_text.delete(1.0, tk.END)
-    
-    inventory_id = inventory_var.get()
+    location = location_var.get()  # Updated variable name
     item_id = item_id_entry.get()
     quantity = quantity_entry.get()
     price = price_entry.get()
-    location = location_var.get()
 
-    if not inventory_id or not item_id or not quantity or not price or not location:
+    if not location or not item_id or not quantity or not price:
         messagebox.showwarning("Missing Input", "Please fill in all fields.")
         return
 
     log_text.insert(tk.END, f"🔍 Starting transaction process...\n")
-    log_text.insert(tk.END, f"📝 Selected Inventory: {inventory_id}\n")
-    log_text.insert(tk.END, f"📂 Reading keys from inventory_{inventory_id.lower()}_keys.txt\n")
+    log_text.insert(tk.END, f"📝 Selected Location: {location}\n")
+    log_text.insert(tk.END, f"📂 Reading keys from inventory_{location.lower()}_keys.txt\n")
     
     message = f"{item_id};{quantity};{price};{location}"
     m_hash = hash_message(message)
     log_text.insert(tk.END, f"🔐 Original Message Hash: {m_hash}\n")
 
     # Get the signing inventory's keys
-    inv = inventory_classes[inventory_id]
-    log_text.insert(tk.END, f"🔑 Generating keys for {inventory_id}...\n")
+    inv = inventory_classes[location]
+    log_text.insert(tk.END, f"🔑 Generating keys for {location}...\n")
     public_key = generate_public_key(inv.p, inv.q, inv.e)
     private_key = generate_private_key(inv.p, inv.q, inv.e)
     log_text.insert(tk.END, f"🔑 Public key: (e={public_key[0]}, n={public_key[1]})\n")
@@ -171,7 +193,7 @@ def submit_transaction():
     log_text.insert(tk.END, "\n🔍 Starting verification process...\n")
     # Get all validators (all inventories except the signing one)
     validators = ['A', 'B', 'C', 'D']
-    validators.remove(inventory_id)
+    validators.remove(location)
     log_text.insert(tk.END, f"👥 Validators for this transaction: {', '.join(validators)}\n")
     
     all_valid = True
@@ -212,15 +234,15 @@ def submit_transaction():
         "Price": price,
         "Location": location
     }
-
+    concensus = consensus(m_hash, [recovered_hash for _ in validators])
     log_text.insert(tk.END, "\n💾 Storing transaction in all inventories...\n")
     for inv_id in ['A', 'B', 'C', 'D']:  # Store in all inventories
         store_transaction(inv_id, item_data)
         log_text.insert(tk.END, f"✅ Stored in {inv_id}\n")
-
-    block = create_block(inventory_id, message, signature, public_key)
-    log_text.insert(tk.END, f"\n✨ Transaction complete! Block #{block['index']} created.\n")
-    messagebox.showinfo("Success", f"✅ Transaction accepted by PoA.\nBlock #{block['index']}")
+    if concensus == True:
+        block = create_block(location, message, signature, public_key)  # Updated parameter
+        log_text.insert(tk.END, f"\n✨ Transaction complete! Block #{block['index']} created.\n")
+        messagebox.showinfo("Success", f"✅ Transaction accepted by PoA.\nBlock #{block['index']}")
 
 # 🍆 GUI Setup
 root = tk.Tk()
@@ -245,12 +267,6 @@ log_text.grid(row=0, column=0, padx=5, pady=5)
 # Load inventory keys first
 log_text.insert(tk.END, "🔍 Loading inventory keys...\n")
 inventory_classes = load_inventory_keys()
-
-# Inventory selection
-ttk.Label(input_frame, text="Select Inventory:").grid(row=0, column=0, padx=5, pady=5)
-inventory_var = tk.StringVar()
-inventory_dropdown = ttk.Combobox(input_frame, textvariable=inventory_var, values=['A', 'B', 'C', 'D'])
-inventory_dropdown.grid(row=0, column=1, padx=5, pady=5)
 
 # Item ID
 ttk.Label(input_frame, text="Item ID:").grid(row=1, column=0, padx=5, pady=5)

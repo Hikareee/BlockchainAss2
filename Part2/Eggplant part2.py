@@ -74,6 +74,42 @@ def rsa_encrypt(m, e, n):
 def rsa_decrypt(c, d, n):
     return pow(c, d, n)
 
+def consensus(partial_signatures, h):
+    """
+    Validates all partial signatures to ensure they are correct.
+
+    Args:
+        partial_signatures (list): List of partial signatures from all nodes.
+        h (int): The hash value computed from t and the message.
+
+    Returns:
+        bool: True if all partial signatures are valid, False otherwise.
+    """
+    output.insert(END, "\n🔍 Starting consensus validation for all partial signatures...\n")
+    all_valid = True
+
+    for idx, (node_id, sig) in enumerate(zip(inventory_data.keys(), partial_signatures)):
+        g_i = g_values[node_id]
+        r_i = inventory_data[node_id]["random"]
+        expected_sig = (g_i * pow(r_i, h, pkg_n)) % pkg_n
+
+        output.insert(END, f"Validator {node_id} (Signature {idx + 1}):\n")
+        output.insert(END, f"   Partial Signature: {sig}\n")
+        output.insert(END, f"   Expected Signature: {expected_sig}\n")
+
+        if sig != expected_sig:
+            output.insert(END, f"❌ Validator {node_id} validation FAILED.\n")
+            all_valid = False
+        else:
+            output.insert(END, f"✅ Validator {node_id} validation PASSED.\n")
+
+    if all_valid:
+        output.insert(END, "\n✨ Consensus mechanism success.\n")
+        return True
+    else:
+        output.insert(END, "\n❌ Consensus mechanism failed.\n")
+        return False
+
 def run_query():
     item_id = entry.get()
     output.delete("1.0", END)
@@ -87,47 +123,61 @@ def run_query():
     if not item:
         output.insert(END, f"Item ID {item_id} not found!\n")
         return
-
+    output.insert(END, f"👨🏻‍💻 Procurment Officer \n")
     quantity = item["quantity"]
     output.insert(END, f"🍆 Queried Item ID: {item_id}\n")
-    output.insert(END, f"🍆 Original Quantity: {quantity}\n\n")
-
-    # Step 1: t_i values
+    # Display g values
+    output.insert(END, f"\n🖥 PKG Forwards the query\n")
+    output.insert(END, f"\n🗄 Inventories search the record and harn multi sign\n")
+    for k, v in g_values.items():
+        output.insert(END, f"Inventory {k} g_{k} = {v}\n")
+    output.insert(END, "\n")
+    # Display t_i values
     t_values = generate_t_values()
     for k, v in t_values.items():
         output.insert(END, f"Inventory {k} t_{k} = {v}\n")
 
-    # Step 2: Compute t = product of t_i
+    # Step 1: Compute t = product of t_i
     t = compute_t(t_values)
     output.insert(END, f"\n🍆 Combined t = {t}\n")
 
-    # Step 3: Hash(t, message)
+    # Step 2: Hash(t, message)
     h = hash_message(t + quantity)  # hash(t, m)
     output.insert(END, f"Hash(t, quantity) = {h}\n\n")
 
-    # Step 4: Each node generates s_i
+    # Step 3: Each node generates s_i
     partial_sigs = []
     for k in inventory_data:
         s_i = generate_partial_signature_Harn(k, h)
         partial_sigs.append(s_i)
         output.insert(END, f"{k} partial signature s_{k} = {s_i}\n")
 
-    # Step 5: Combine s_i into full s
+    # Step 4: Combine s_i into full s
     final_signature = aggregate_signatures_Harn(partial_sigs)
     output.insert(END, f"\n🍆 Aggregated Signature: {final_signature}\n")
-
-    # Step 6: Encrypt only the quantity
+    output.insert(END, f"\n🗄 Inventory sends search result and all the public parameters to PKG\n" )
+    output.insert(END, f"\n🖥 PKG initiates concensus mechanism\n")
+    concensus_result = consensus(partial_sigs, h)
+    if not concensus_result:
+        output.insert(END, "❌ Consensus failed. Exiting...\n")
+        return
+    output.insert(END, "✅ Consensus passed.\n")
+    output.insert(END, "\n🖥 PKG initiates Encryption Process\n")
+    # Step 5: Encrypt only the quantity
     output.insert(END, f"\n🔒 Encryption Process:\n")
     output.insert(END, f"Original Quantity: {quantity}\n")
     encrypted_quantity = rsa_encrypt(quantity, po_e, po_n)
     output.insert(END, f"Encrypted Quantity: {encrypted_quantity}\n")
+    output.insert(END, "\n🖥 PKG sends the encrypted quantity and signature to Procurement Officer\n")
+    output.insert(END, "\n👨🏻‍💻 Procurement Officer receives the encrypted quantity\n")
+    output.insert(END, "\n👨🏻‍💻 Procurement Officer initiates Decryption Process\n")
 
-    # Step 7: Decrypt the quantity
+    # Step 6: Decrypt the quantity
     output.insert(END, f"\n🔓 Decryption Process:\n")
     decrypted_quantity = rsa_decrypt(encrypted_quantity, po_d, po_n)
     output.insert(END, f"Decrypted Quantity: {decrypted_quantity}\n")
 
-    # Step 8: Verify the signature using PKG public key
+    # Step 7: Verify the signature using PKG public key
     ids_product = 1
     for k in inventory_data:
         ids_product = (ids_product * pow(inventory_data[k]["ID"], 1, pkg_n)) % pkg_n
@@ -135,6 +185,7 @@ def run_query():
     left = pow(final_signature, pkg_e, pkg_n)
     right = (ids_product * pow(t, h, pkg_n)) % pkg_n
 
+    output.insert(END, "\n👨🏻‍💻 Procurement Officer Initiates Signature Verification Process:\n")
     output.insert(END, f"\n🧮 Signature Verification:\n")
     output.insert(END, f"Left side (s^e mod n) = {left}\n")
     output.insert(END, f"Right side ((i_1 * i_2 * i_3) * t^h mod n) = {right}\n")
@@ -146,11 +197,9 @@ def run_query():
 
     # Final verification summary
     output.insert(END, f"\n📊 Final Results:\n")
-    output.insert(END, f"Original Quantity: {quantity}\n")
     output.insert(END, f"Decrypted Quantity: {decrypted_quantity}\n")
-    output.insert(END, f"Quantity Match: {'✅' if quantity == decrypted_quantity else '❌'}\n")
     output.insert(END, f"Signature Valid: {'✅' if left == right else '❌'}\n")
-
+    output.insert(END, f"👨🏻‍💻 Procurement Officer Recives Quantity Query Result ✅\n")
 
 # GUI
 root = Tk()
