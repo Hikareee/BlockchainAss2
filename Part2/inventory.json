@@ -1,5 +1,6 @@
 [
-    { "itemID": "001", "quantity": 45, "price": 10.99, "location": "Warehouse A" },
-    { "itemID": "002", "quantity": 54, "price": 12.49, "location": "Warehouse B" },
-    { "itemID": "003", "quantity": 33, "price": 9.75, "location": "Warehouse C" }
+    { "itemID": "001", "quantity": 32, "price": 12, "location": "D" },
+    { "itemID": "002", "quantity": 20, "price": 14, "location": "C" },
+    { "itemID": "003", "quantity": 22, "price": 16, "location": "B" },
+    { "itemID": "004", "quantity": 12, "price": 18, "location": "A" }
 ]

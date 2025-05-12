@@ -2,18 +2,64 @@ import json
 import os
 import hashlib
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, scrolledtext
 from datetime import datetime
 
-from InventoryKeys import InventoryA, InventoryB, InventoryC, InventoryD
 
-# 🍆 Inventory class map
-inventory_classes = {
-    'A': InventoryA,
-    'B': InventoryB,
-    'C': InventoryC,
-    'D': InventoryD
-}
+# 🍆 Inventory class to store keys
+class Inventory:
+    def __init__(self, p, q, e):
+        self.p = int(p)
+        self.q = int(q)
+        self.e = int(e)
+
+# 🍆 Load inventory keys from individual files
+def load_inventory_keys():
+    inventory_classes = {}
+    inventory_files = {
+        'A': 'Part1/inventory_a_keys.txt',
+        'B': 'Part1/inventory_b_keys.txt',
+        'C': 'Part1/inventory_c_keys.txt',
+        'D': 'Part1/inventory_d_keys.txt'
+    }
+    
+    for inv_id, file_path in inventory_files.items():
+        try:
+            with open(file_path, "r") as f:
+                keys = {}
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        key, value = line.split('=')
+                        keys[key] = value
+                
+                # Log the keys being read
+                log_text.insert(tk.END, f"\n📖 Reading keys for Inventory {inv_id}:\n")
+                log_text.insert(tk.END, f"   p: {keys.get('p', 'Not found')}\n")
+                log_text.insert(tk.END, f"   q: {keys.get('q', 'Not found')}\n")
+                log_text.insert(tk.END, f"   e: {keys.get('e', 'Not found')}\n")
+                
+                if not all(k in keys for k in ['p', 'q', 'e']):
+                    log_text.insert(tk.END, f"⚠️ Warning: Missing keys for Inventory {inv_id}\n")
+                    continue
+                    
+                inventory_classes[inv_id] = Inventory(
+                    keys['p'],
+                    keys['q'],
+                    keys['e']
+                )
+                log_text.insert(tk.END, f"✅ Successfully loaded keys for Inventory {inv_id}\n")
+        except FileNotFoundError:
+            log_text.insert(tk.END, f"⚠️ Error: Could not find keys file for Inventory {inv_id}\n")
+        except Exception as e:
+            log_text.insert(tk.END, f"⚠️ Error loading keys for Inventory {inv_id}: {str(e)}\n")
+    
+    if not inventory_classes:
+        log_text.insert(tk.END, "❌ Error: No inventory keys were loaded successfully!\n")
+    else:
+        log_text.insert(tk.END, f"\n✨ Successfully loaded {len(inventory_classes)} inventory keys\n")
+    
+    return inventory_classes
 
 # 🍆 Core RSA and Hashing Functions
 def hash_message(message):
@@ -35,8 +81,6 @@ def sign(m_hash, d, n):
 
 def verify(m_hash, s, e, n):
     alt_m = pow(s, e, n)
-    print(f"📝 Original message hash:     {m_hash}")
-    print(f"🔁 Recovered hash from sig:   {alt_m}")
     return alt_m == m_hash
 
 # 🍆 Blockchain and PoA Consensus
@@ -92,6 +136,9 @@ def store_transaction(inventory_id, item_data):
 
 # 🍆 Tkinter UI Submit Logic
 def submit_transaction():
+    # Clear previous log
+    log_text.delete(1.0, tk.END)
+    
     inventory_id = inventory_var.get()
     item_id = item_id_entry.get()
     quantity = quantity_entry.get()
@@ -102,23 +149,62 @@ def submit_transaction():
         messagebox.showwarning("Missing Input", "Please fill in all fields.")
         return
 
+    log_text.insert(tk.END, f"🔍 Starting transaction process...\n")
+    log_text.insert(tk.END, f"📝 Selected Inventory: {inventory_id}\n")
+    log_text.insert(tk.END, f"📂 Reading keys from inventory_{inventory_id.lower()}_keys.txt\n")
+    
     message = f"{item_id};{quantity};{price};{location}"
     m_hash = hash_message(message)
+    log_text.insert(tk.END, f"🔐 Original Message Hash: {m_hash}\n")
 
+    # Get the signing inventory's keys
     inv = inventory_classes[inventory_id]
-    public_key= generate_public_key(inv.p, inv.q, inv.e)
-    private_key = generate_private_key(inv.p,inv.q, inv.e)
+    log_text.insert(tk.END, f"🔑 Generating keys for {inventory_id}...\n")
+    public_key = generate_public_key(inv.p, inv.q, inv.e)
+    private_key = generate_private_key(inv.p, inv.q, inv.e)
+    log_text.insert(tk.END, f"🔑 Public key: (e={public_key[0]}, n={public_key[1]})\n")
+    
     signature = sign(m_hash, private_key[0], private_key[1])
+    log_text.insert(tk.END, f"✍️ Signature generated: {signature}\n")
 
     # 🍆 Validators: All other inventories verify the signature
-    validators = [inv_id for inv_id in inventory_classes if inv_id != inventory_id]
+    log_text.insert(tk.END, "\n🔍 Starting verification process...\n")
+    # Get all validators (all inventories except the signing one)
+    validators = ['A', 'B', 'C', 'D']
+    validators.remove(inventory_id)
+    log_text.insert(tk.END, f"👥 Validators for this transaction: {', '.join(validators)}\n")
+    
+    all_valid = True
+    
     for validator_id in validators:
+        log_text.insert(tk.END, f"\n🔍 Validator {validator_id} checking signature...\n")
+        log_text.insert(tk.END, f"📂 Reading keys from inventory_{validator_id.lower()}_keys.txt\n")
+        
+        if validator_id not in inventory_classes:
+            log_text.insert(tk.END, f"❌ Error: Validator {validator_id} keys not found!\n")
+            all_valid = False
+            break
+            
         validator = inventory_classes[validator_id]
         validator_public_key = generate_public_key(validator.p, validator.q, validator.e)
-        if not verify(m_hash, signature, public_key[0], public_key[1]):
-            messagebox.showerror("PoA Rejected", f"❌ Transaction rejected by validator {validator_id}.")
-            return
-        pass
+        
+        # Calculate recovered hash
+        recovered_hash = pow(signature, public_key[0], public_key[1])
+        is_valid = verify(m_hash, signature, public_key[0], public_key[1])
+        
+        log_text.insert(tk.END, f"📊 Hash Comparison:\n")
+        log_text.insert(tk.END, f"   Original Hash:    {m_hash}\n")
+        log_text.insert(tk.END, f"   Recovered Hash:   {recovered_hash}\n")
+        log_text.insert(tk.END, f"✅ Validator {validator_id} verification: {'PASSED' if is_valid else 'FAILED'}\n")
+        
+        if not is_valid:
+            all_valid = False
+            break
+
+    if not all_valid:
+        log_text.insert(tk.END, "\n❌ Transaction rejected by validators.\n")
+        messagebox.showerror("PoA Rejected", f"❌ Transaction rejected by validators.")
+        return
 
     item_data = {
         "ItemID": item_id,
@@ -127,45 +213,74 @@ def submit_transaction():
         "Location": location
     }
 
-    for inv_id in inventory_classes:
+    log_text.insert(tk.END, "\n💾 Storing transaction in all inventories...\n")
+    for inv_id in ['A', 'B', 'C', 'D']:  # Store in all inventories
         store_transaction(inv_id, item_data)
+        log_text.insert(tk.END, f"✅ Stored in {inv_id}\n")
 
     block = create_block(inventory_id, message, signature, public_key)
+    log_text.insert(tk.END, f"\n✨ Transaction complete! Block #{block['index']} created.\n")
     messagebox.showinfo("Success", f"✅ Transaction accepted by PoA.\nBlock #{block['index']}")
 
 # 🍆 GUI Setup
 root = tk.Tk()
 root.title("Inventory Blockchain - PoA")
 
+# Create main frame
+main_frame = ttk.Frame(root, padding="10")
+main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+# Input fields frame
+input_frame = ttk.LabelFrame(main_frame, text="Transaction Details", padding="5")
+input_frame.grid(row=0, column=0, padx=5, pady=5, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+# Log frame
+log_frame = ttk.LabelFrame(main_frame, text="Process Log", padding="5")
+log_frame.grid(row=0, column=1, padx=5, pady=5, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+# Log text widget
+log_text = scrolledtext.ScrolledText(log_frame, width=60, height=30)
+log_text.grid(row=0, column=0, padx=5, pady=5)
+
+# Load inventory keys first
+log_text.insert(tk.END, "🔍 Loading inventory keys...\n")
+inventory_classes = load_inventory_keys()
+
 # Inventory selection
-tk.Label(root, text="Select Inventory:").grid(row=0, column=0, padx=10, pady=5)
+ttk.Label(input_frame, text="Select Inventory:").grid(row=0, column=0, padx=5, pady=5)
 inventory_var = tk.StringVar()
-inventory_dropdown = ttk.Combobox(root, textvariable=inventory_var, values=list(inventory_classes.keys()))
-inventory_dropdown.grid(row=0, column=1, padx=10, pady=5)
+inventory_dropdown = ttk.Combobox(input_frame, textvariable=inventory_var, values=['A', 'B', 'C', 'D'])
+inventory_dropdown.grid(row=0, column=1, padx=5, pady=5)
 
 # Item ID
-tk.Label(root, text="Item ID:").grid(row=1, column=0, padx=10, pady=5)
-item_id_entry = tk.Entry(root)
-item_id_entry.grid(row=1, column=1, padx=10, pady=5)
+ttk.Label(input_frame, text="Item ID:").grid(row=1, column=0, padx=5, pady=5)
+item_id_entry = ttk.Entry(input_frame)
+item_id_entry.grid(row=1, column=1, padx=5, pady=5)
 
 # Quantity
-tk.Label(root, text="Quantity:").grid(row=2, column=0, padx=10, pady=5)
-quantity_entry = tk.Entry(root)
-quantity_entry.grid(row=2, column=1, padx=10, pady=5)
+ttk.Label(input_frame, text="Quantity:").grid(row=2, column=0, padx=5, pady=5)
+quantity_entry = ttk.Entry(input_frame)
+quantity_entry.grid(row=2, column=1, padx=5, pady=5)
 
 # Price
-tk.Label(root, text="Price:").grid(row=3, column=0, padx=10, pady=5)
-price_entry = tk.Entry(root)
-price_entry.grid(row=3, column=1, padx=10, pady=5)
+ttk.Label(input_frame, text="Price:").grid(row=3, column=0, padx=5, pady=5)
+price_entry = ttk.Entry(input_frame)
+price_entry.grid(row=3, column=1, padx=5, pady=5)
 
 # Location
-tk.Label(root, text="Location:").grid(row=4, column=0, padx=10, pady=5)
+ttk.Label(input_frame, text="Location:").grid(row=4, column=0, padx=5, pady=5)
 location_var = tk.StringVar()
-location_dropdown = ttk.Combobox(root, textvariable=location_var, values=["A", "B", "C", "D"])
-location_dropdown.grid(row=4, column=1, padx=10, pady=5)
+location_dropdown = ttk.Combobox(input_frame, textvariable=location_var, values=["A", "B", "C", "D"])
+location_dropdown.grid(row=4, column=1, padx=5, pady=5)
 
 # Submit button
-submit_button = tk.Button(root, text="Submit Transaction", command=submit_transaction)
-submit_button.grid(row=5, column=0, columnspan=2, pady=15)
+submit_button = ttk.Button(input_frame, text="Submit Transaction", command=submit_transaction)
+submit_button.grid(row=5, column=0, columnspan=2, pady=10)
+
+# Configure grid weights
+root.columnconfigure(0, weight=1)
+root.rowconfigure(0, weight=1)
+main_frame.columnconfigure(1, weight=1)
+main_frame.rowconfigure(0, weight=1)
 
 root.mainloop()

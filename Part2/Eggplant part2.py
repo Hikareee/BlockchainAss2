@@ -90,7 +90,7 @@ def run_query():
 
     quantity = item["quantity"]
     output.insert(END, f"🍆 Queried Item ID: {item_id}\n")
-    output.insert(END, f"🍆 Quantity Found: {quantity}\n\n")
+    output.insert(END, f"🍆 Original Quantity: {quantity}\n\n")
 
     # Step 1: t_i values
     t_values = generate_t_values()
@@ -116,31 +116,23 @@ def run_query():
     final_signature = aggregate_signatures_Harn(partial_sigs)
     output.insert(END, f"\n🍆 Aggregated Signature: {final_signature}\n")
 
-    # Step 6: Encrypt response (quantity << 256 | sig)
-    print(quantity)
-    quantity_bit_length = quantity.bit_length()
-    signature_bit_length = final_signature.bit_length()
-    response = (quantity << signature_bit_length) | final_signature
-    print(response)
-    print("PlainText:", response, po_e, po_n)
-    cipher = rsa_encrypt(response, po_e, po_n)
-    output.insert(END, f"\n🔒 Encrypted Response: {cipher}\n")
+    # Step 6: Encrypt only the quantity
+    output.insert(END, f"\n🔒 Encryption Process:\n")
+    output.insert(END, f"Original Quantity: {quantity}\n")
+    encrypted_quantity = rsa_encrypt(quantity, po_e, po_n)
+    output.insert(END, f"Encrypted Quantity: {encrypted_quantity}\n")
 
-    # Step 7: Decrypt on Procurement Officer side
-    decrypted = rsa_decrypt(cipher, po_d, po_n)
-    print("Dec:", decrypted)
-    recovered_signature = decrypted & ((1 << signature_bit_length) - 1)
-    recovered_quantity = decrypted >> signature_bit_length
+    # Step 7: Decrypt the quantity
+    output.insert(END, f"\n🔓 Decryption Process:\n")
+    decrypted_quantity = rsa_decrypt(encrypted_quantity, po_d, po_n)
+    output.insert(END, f"Decrypted Quantity: {decrypted_quantity}\n")
 
-    output.insert(END, f"\n🔓 Decrypted Quantity: {recovered_quantity}\n")
-    output.insert(END, f"🔓 Decrypted Signature: {recovered_signature}\n")
-        # Step 8: Verify the signature using PKG public key
+    # Step 8: Verify the signature using PKG public key
     ids_product = 1
     for k in inventory_data:
         ids_product = (ids_product * pow(inventory_data[k]["ID"], 1, pkg_n)) % pkg_n
 
-
-    left = pow(recovered_signature, pkg_e, pkg_n)
+    left = pow(final_signature, pkg_e, pkg_n)
     right = (ids_product * pow(t, h, pkg_n)) % pkg_n
 
     output.insert(END, f"\n🧮 Signature Verification:\n")
@@ -151,6 +143,13 @@ def run_query():
         output.insert(END, "✅ Signature is VALID\n")
     else:
         output.insert(END, "❌ Signature is INVALID\n")
+
+    # Final verification summary
+    output.insert(END, f"\n📊 Final Results:\n")
+    output.insert(END, f"Original Quantity: {quantity}\n")
+    output.insert(END, f"Decrypted Quantity: {decrypted_quantity}\n")
+    output.insert(END, f"Quantity Match: {'✅' if quantity == decrypted_quantity else '❌'}\n")
+    output.insert(END, f"Signature Valid: {'✅' if left == right else '❌'}\n")
 
 
 # GUI
