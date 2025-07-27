@@ -168,7 +168,7 @@ def submit_transaction():
     price = price_entry.get()
 
     if not location or not item_id or not quantity or not price:
-        messagebox.showwarning("Missing Input", "Please fill in all fields.")
+        messagebox.showwarning("Missing Input", "Please fill in all fields or else it won't work.")
         return
 
     log_text.insert(tk.END, f"🔍 Starting transaction process...\n")
