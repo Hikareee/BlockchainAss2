@@ -187,7 +187,7 @@ def submit_transaction():
     log_text.insert(tk.END, f"🔑 Public key: (e={public_key[0]}, n={public_key[1]})\n")
     
     signature = sign(m_hash, private_key[0], private_key[1])
-    log_text.insert(tk.END, f"✍️ Signature generated: {signature}\n")
+    log_text.insert(tk.END, f"✍️ Signature generated with hash and keys: {signature}\n")
 
     # 🍆 Validators: All other inventories verify the signature
     log_text.insert(tk.END, "\n🔍 Starting verification process...\n")
