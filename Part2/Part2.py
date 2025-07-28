@@ -104,7 +104,7 @@ def consensus(partial_signatures, h):
             output.insert(END, f"✅ Validator {node_id} validation PASSED.\n")
 
     if all_valid:
-        output.insert(END, "\n✨ Consensus mechanism success.\n")
+        output.insert(END, "\n✨ Consensus mechanism successful.\n")
         return True
     else:
         output.insert(END, "\n❌ Consensus mechanism failed.\n")
